@@ -11,7 +11,7 @@ import (
 
 // template parameters
 const (
-	v2vServiceInstance    = "tests/manifests/import-vm-v2v-apb.yml"
+	v2vServiceInstance    = "tests/manifests/template/import-vm-v2v-apb.yml"
 	dstv2vServiceInstance = "/tmp/test-v2v.json"
 )
 
