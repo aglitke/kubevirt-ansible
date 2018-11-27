@@ -1,10 +1,13 @@
 package tests_test
 
 import (
+	"fmt"
+	"time"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"kubevirt.io/kubevirt-ansible/tests"
+	tests "kubevirt.io/kubevirt-ansible/tests/framework"
 	kubev1 "kubevirt.io/kubevirt/pkg/api/v1"
 	ktests "kubevirt.io/kubevirt/tests"
 )
@@ -25,15 +28,36 @@ var _ = Describe("DataVolume Integration Test", func() {
 			url = "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
 		})
 
-		It("Creating VM and start VMI will be success", func() {
+		It("Creating VM and start VMI multiple times will be succeed", func() {
 			tests.ProcessTemplateWithParameters(rawDataVolumeVMFilePath, dstDataVolumeFilePath, "VM_APIVERSION="+kubev1.GroupVersion.String(), "VM_NAME="+vmName, "IMG_URL="+tests.ReplaceImageURL(url), "DATAVOLUME_NAME="+dataVolumeName)
 			tests.CreateResourceWithFilePathTestNamespace(dstDataVolumeFilePath)
-			tests.WaitUntilResourceReadyByNameTestNamespace("pvc", dataVolumeName, "-o=jsonpath='{.metadata.annotations}'", "pv.kubernetes.io/bind-completed:yes")
-			By("Start VM with virtctl")
-			args := []string{"start", vmName, "-n", tests.NamespaceTestDefault}
-			_, _, err := ktests.RunCommand("virtctl", args...)
-			Expect(err).ToNot(HaveOccurred())
-			tests.WaitUntilResourceReadyByNameTestNamespace("vmi", vmName, "-o=jsonpath='{.status.phase}'", "Running")
+
+			tests.StartVirtualMachine(vmName, ktests.NamespaceTestDefault)
+
+			num := 2
+			By("Starting and stopping the VirtualMachine number of times")
+			for i := 0; i < num; i++ {
+				By(fmt.Sprintf("Doing run: %d", i))
+				tests.StartVirtualMachine(vmName, ktests.NamespaceTestDefault)
+				// Verify console on last iteration to verify the VirtualMachineInstance is still booting properly
+				// after being restarted multiple times
+				if i == num {
+					By("Checking that the VirtualMachineInstance console has expected output")
+					expecter, err := tests.LoggedInAlpineExpecter(vmName, tests.NamespaceTestDefault, 360)
+					Expect(err).ToNot(HaveOccurred())
+					defer expecter.Close()
+				}
+				tests.StopVirtualMachine(vmName, ktests.NamespaceTestDefault)
+			}
+			tests.DeleteResourceByNameTestNamespace("vm", vmName)
+
+			Eventually(func() string {
+				By("Observe the PVC being deleted")
+				args := []string{"get", "pvc", dataVolumeName, "-n", ktests.NamespaceTestDefault}
+				out, _, err := ktests.RunCommand("oc", args...)
+				Expect(err).ToNot(HaveOccurred())
+				return out
+			}, 300*time.Second, 1*time.Second).Should(Equal(fmt.Sprintf("Error from server (NotFound): persistentvolumeclaims \"%s\" not found", dataVolumeName)), "The vmi did not disappear")
 		})
 	})
 
@@ -49,11 +73,22 @@ var _ = Describe("DataVolume Integration Test", func() {
 		It("Pre creating datavolume then create VMI will be success", func() {
 			tests.ProcessTemplateWithParameters(rawDataVolumeFilePath, dstDataVolumeFilePath, "DATAVOLUME_NAME="+dataVolumeName, "IMG_URL="+tests.ReplaceImageURL(url))
 			tests.CreateResourceWithFilePathTestNamespace(dstDataVolumeFilePath)
-			tests.WaitUntilResourceReadyByNameTestNamespace("pvc", dataVolumeName, "-o=jsonpath='{.metadata.annotations}'", "pv.kubernetes.io/bind-completed:yes")
-
 			tests.ProcessTemplateWithParameters(rawDataVolumeVMIFilePath, dstVMIFilePath, "VM_APIVERSION="+kubev1.GroupVersion.String(), "VM_NAME="+vmName, "DATAVOLUME_NAME="+dataVolumeName)
 			tests.CreateResourceWithFilePathTestNamespace(dstVMIFilePath)
 			tests.WaitUntilResourceReadyByNameTestNamespace("vmi", vmName, "-o=jsonpath='{.status.phase}'", "Running")
+			By("Checking that the VirtualMachineInstance console has expected output")
+			expecter, err := tests.LoggedInAlpineExpecter(vmName, tests.NamespaceTestDefault, 360)
+			Expect(err).ToNot(HaveOccurred())
+			defer expecter.Close()
+
+			Eventually(func() string {
+				By("Observe the PVC being deleted")
+				args := []string{"get", "pvc", dataVolumeName, "-n", ktests.NamespaceTestDefault}
+				out, _, err := ktests.RunCommand("oc", args...)
+				Expect(err).ToNot(HaveOccurred())
+				return out
+			}, 300*time.Second, 1*time.Second).Should(Equal(fmt.Sprintf("Error from server (NotFound): persistentvolumeclaims \"%s\" not found", dataVolumeName)), "The vmi did not disappear")
+
 		})
 	})
 

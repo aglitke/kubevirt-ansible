@@ -3,6 +3,7 @@ package framework
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,6 +17,14 @@ func ProcessTemplateWithParameters(srcFilePath, dstFilePath string, params ...st
 	return filePath
 }
 
+func ReplaceImageURL(originalURL string) string {
+	envURL, ok := os.LookupEnv("STREAM_IMAGE_URL")
+	if ok {
+		return envURL
+	}
+	return originalURL
+}
+
 func CreateResourceWithFilePathTestNamespace(filePath string) {
 	By("Creating resource from the json file with the oc-create command")
 	execute(Result{cmd: "oc", verb: "create", filePath: filePath, nameSpace: NamespaceTestDefault})
@@ -24,6 +33,11 @@ func CreateResourceWithFilePathTestNamespace(filePath string) {
 func DeleteResourceWithLabelTestNamespace(resourceType, resourceLabel string) {
 	By(fmt.Sprintf("Deleting %s:%s from the json file with the oc-delete command", resourceType, resourceLabel))
 	execute(Result{cmd: "oc", verb: "delete", resourceType: resourceType, resourceLabel: resourceLabel, nameSpace: NamespaceTestDefault})
+}
+
+func DeleteResourceByNameTestNamespace(resourceType, resourceName string) {
+	By(fmt.Sprintf("Deleting %s:%s from the json file with the oc-delete command", resourceType, resourceName))
+	execute(Result{cmd: "oc", verb: "delete", resourceType: resourceType, resourceName: resourceName, nameSpace: NamespaceTestDefault})
 }
 
 func WaitUntilResourceReadyByNameTestNamespace(resourceType, resourceName, query, expectOut string) {
