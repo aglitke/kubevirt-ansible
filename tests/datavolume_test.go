@@ -81,6 +81,8 @@ var _ = Describe("DataVolume Integration Test", func() {
 			Expect(err).ToNot(HaveOccurred())
 			defer expecter.Close()
 
+			tests.DeleteResourceByNameTestNamespace("vmi", vmName)
+
 			Eventually(func() string {
 				By("Observe the PVC being deleted")
 				args := []string{"get", "pvc", dataVolumeName, "-n", ktests.NamespaceTestDefault}

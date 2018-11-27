@@ -22,7 +22,7 @@ objects:
           - ReadWriteOnce
           resources:
             requests:
-              storage: 2Gi
+              storage: 1Gi
         source:
           http:
             url: ${IMG_URL}
