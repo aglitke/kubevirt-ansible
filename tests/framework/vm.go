@@ -14,8 +14,7 @@ import (
 
 func StartVirtualMachine(vmName, namespace string) {
 	By("Start VM with virtctl")
-	args := []string{"start", vmName, "-n", namespace}
-	_, _, err := ktests.RunCommand("virtctl", args...)
+	_, _, err := ktests.RunCommandWithNS(namespace, "virtctl", "start", vmName)
 	Expect(err).ToNot(HaveOccurred())
 	WaitUntilResourceReadyByNameTestNamespace("vmi", vmName, "-o=jsonpath='{.status.phase}'", "Running")
 }
@@ -25,10 +24,8 @@ func StopVirtualMachine(vmName, namespace string) {
 	ktests.PanicOnError(err)
 
 	By("Stop VM with virtctl")
-	args := []string{"stop", vmName, "-n", namespace}
-	_, _, err = ktests.RunCommand("virtctl", args...)
+	_, _, err = ktests.RunCommandWithNS(namespace,"virtctl", "stop", vmName)
 	Expect(err).ToNot(HaveOccurred())
-	WaitUntilResourceReadyByNameTestNamespace("vmi", vmName, "-o=jsonpath='{.status.phase}'", "Running")
 
 	updatedVM, err := virtClient.VirtualMachine(namespace).Get(vmName, &metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
